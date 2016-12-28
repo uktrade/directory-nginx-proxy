@@ -106,12 +106,19 @@ http {
 }
 EOF
 elif [ "$PROTOCOL" == "TCP" ]; then
-cat <<EOF >>/etc/nginx/nginx.conf
+cat <<EOF >>nginx.conf
 
 stream {
   server {
-    listen ${UPSTREAM_PORT};
-    proxy_pass ${UPSTREAM}:${UPSTREAM_PORT};
+    server_name ${DIRECTORY_UI_BUYER_DOMAIN};
+    listen ${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
+    proxy_pass ${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
+  }
+
+  server {
+    server_name ${DIRECTORY_UI_SUPPLIER_DOMAIN};
+    listen ${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
+    proxy_pass ${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
   }
 }
 EOF
@@ -119,7 +126,9 @@ else
 echo "Unknown PROTOCOL. Valid values are HTTP or TCP."
 fi
 
-echo "Proxy ${PROTOCOL} for ${UPSTREAM}:${UPSTREAM_PORT}"
+echo "Proxy ${PROTOCOL} for ${DIRECTORY_UI_BUYER_DOMAIN}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT}"
+echo "Proxy ${PROTOCOL} for ${DIRECTORY_UI_SUPPLIER_DOMAIN}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT}"
+
 
 # Launch nginx in the foreground
 /usr/sbin/nginx -g "daemon off;"
