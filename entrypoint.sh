@@ -3,8 +3,12 @@
 set -euo pipefail
 
 # Validate environment variables
-: "${UPSTREAM:?Set UPSTREAM using --env}"
-: "${UPSTREAM_PORT:?Set UPSTREAM_PORT using --env}"
+: "${DIRECTORY_UI_BUYER_DOMAIN:?Set DIRECTORY_UI_BUYER_DOMAIN using --env}"
+: "${DIRECTORY_UI_BUYER_UPSTREAM:?Set DIRECTORY_UI_BUYER_UPSTREAM using --env}"
+: "${DIRECTORY_UI_BUYER_UPSTREAM_PORT:?Set DIRECTORY_UI_BUYER_UPSTREAM_PORT using --env}"
+: "${DIRECTORY_UI_SUPPLIER_DOMAIN:?Set DIRECTORY_UI_SUPPLIER_DOMAIN using --env}"
+: "${DIRECTORY_UI_SUPPLIER_UPSTREAM:?Set DIRECTORY_UI_SUPPLIER_UPSTREAM using --env}"
+: "${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT:?Set DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT using --env}"
 : "${ERROR_PAGE:?Set ERROR_PAGE using --env}"
 : "${CLIENT_MAX_BODY_SIZE:?Set CLIENT_MAX_BODY_SIZE using --env}"
 : "${CLIENT_BODY_TIMEOUT:?Set CLIENT_BODY_TIMEOUT using --env}"
@@ -26,11 +30,10 @@ EOF
 
 if [ "$PROTOCOL" = "HTTP" ]; then
 
-cat <<EOF >/etc/nginx/directory_proxy.conf
-proxy_pass http://${UPSTREAM}:${UPSTREAM_PORT};
+cat <<EOF >/etc/nginx/directory_common.conf
 proxy_set_header Host \$host;
 proxy_set_header X-Forwarded-For \$remote_addr;
-error_page 403 405 414 416 500 501 502 503 504 ${ERROR_PAGE};
+error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
 add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
 add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
@@ -50,12 +53,42 @@ http {
   send_timeout ${SEND_TIMEOUT};
 
   server {
+    server_name ${DIRECTORY_UI_BUYER_DOMAIN};
+
     location / {
-      include /etc/nginx/directory_proxy.conf;
+      proxy_pass http://${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
     }
 
     location ^~ /admin/ {
-      include /etc/nginx/directory_proxy.conf;
+      proxy_pass http://${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
+
+      set \$allow false;
+      if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
+         set \$allow true;
+      }
+      if (\$allow = false) {
+         return 403;
+      }
+    }
+
+    if (\$http_x_forwarded_proto != 'https') {
+      return 301 https://\$host\$request_uri;
+    }
+  }
+
+  server {
+    server_name ${DIRECTORY_UI_SUPPLIER_DOMAIN};
+
+    location / {
+      proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
+    }
+
+    location ^~ /admin/ {
+      proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
 
       set \$allow false;
       if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
