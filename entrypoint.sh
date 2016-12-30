@@ -16,6 +16,7 @@ set -euo pipefail
 : "${KEEPALIVE_TIMEOUT:?Set KEEPALIVE_TIMEOUT using --env}"
 : "${SEND_TIMEOUT:?Set SEND_TIMEOUT using --env}"
 : "${ADMIN_IP_WHITELIST_REGEX:?Set ADMIN_IP_WHITELIST_REGEX using --env}"
+: "${FAS_IP_WHITELIST_REGEX:?Set FAS_IP_WHITELIST_REGEX using --env}"
 PROTOCOL=${PROTOCOL:=HTTP}
 
 # Template an nginx.conf
@@ -84,6 +85,14 @@ http {
     location / {
       proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
+
+      set \$allow false;
+      if (\$http_x_forwarded_for ~ ${FAS_IP_WHITELIST_REGEX}) {
+         set \$allow true;
+      }
+      if (\$allow = false) {
+         return 403;
+      }
     }
 
     location ^~ /admin/ {
