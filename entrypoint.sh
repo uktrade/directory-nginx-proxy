@@ -85,14 +85,6 @@ http {
     location / {
       proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
-
-      set \$allow false;
-      if (\$http_x_forwarded_for ~ ${FAS_IP_WHITELIST_REGEX}) {
-         set \$allow true;
-      }
-      if (\$allow = false) {
-         return 403;
-      }
     }
 
     location ^~ /admin/ {
