@@ -10,6 +10,7 @@ set -euo pipefail
 : "${DIRECTORY_UI_SUPPLIER_UPSTREAM:?Set DIRECTORY_UI_SUPPLIER_UPSTREAM using --env}"
 : "${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT:?Set DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT using --env}"
 : "${ERROR_PAGE:?Set ERROR_PAGE using --env}"
+: "${ERROR_PAGE_FAB_REQUEST_TOO_LARGE:?Set ERROR_PAGE_FAB_REQUEST_TOO_LARGE using --env}"
 : "${CLIENT_MAX_BODY_SIZE:?Set CLIENT_MAX_BODY_SIZE using --env}"
 : "${CLIENT_BODY_TIMEOUT:?Set CLIENT_BODY_TIMEOUT using --env}"
 : "${CLIENT_HEADER_TIMEOUT:?Set CLIENT_HEADER_TIMEOUT using --env}"
@@ -33,7 +34,6 @@ if [ "$PROTOCOL" = "HTTP" ]; then
 cat <<EOF >/etc/nginx/directory_common.conf
 proxy_set_header Host \$host;
 proxy_set_header X-Forwarded-For \$remote_addr;
-error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
 add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
 add_header X-Frame-Options DENY;
 add_header X-Content-Type-Options nosniff;
@@ -58,11 +58,14 @@ http {
     location / {
       proxy_pass http://${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
+      error_page 403 405 414 416 500 501 502 503 504 ${ERROR_PAGE};
+      error_page 413 ${ERROR_PAGE_FAB_REQUEST_TOO_LARGE};
     }
 
     location ^~ /admin/ {
       proxy_pass http://${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
+      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
 
       set \$allow false;
       if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
@@ -84,11 +87,13 @@ http {
     location / {
       proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
+      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
     }
 
     location ^~ /admin/ {
       proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
       include /etc/nginx/directory_common.conf;
+      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
 
       set \$allow false;
       if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
