@@ -3,6 +3,9 @@
 set -euo pipefail
 
 # Validate environment variables
+: "${DIRECTORY_API_DOMAIN:?Set DIRECTORY_API_DOMAIN using --env}"
+: "${DIRECTORY_API_UPSTREAM:?Set DIRECTORY_API_UPSTREAM using --env}"
+: "${DIRECTORY_API_UPSTREAM_PORT:?Set DIRECTORY_API_UPSTREAM_PORT using --env}"
 : "${DIRECTORY_UI_BUYER_DOMAIN:?Set DIRECTORY_UI_BUYER_DOMAIN using --env}"
 : "${DIRECTORY_UI_BUYER_UPSTREAM:?Set DIRECTORY_UI_BUYER_UPSTREAM using --env}"
 : "${DIRECTORY_UI_BUYER_UPSTREAM_PORT:?Set DIRECTORY_UI_BUYER_UPSTREAM_PORT using --env}"
@@ -52,6 +55,20 @@ http {
   send_timeout ${SEND_TIMEOUT};
 
   server {
+    server_name ${DIRECTORY_API_DOMAIN};
+
+    location / {
+      proxy_pass http://${DIRECTORY_API_UPSTREAM}:${DIRECTORY_API_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
+      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
+    }
+
+    if (\$http_x_forwarded_proto != 'https') {
+      return 301 https://\$host\$request_uri;
+    }
+  }
+
+  server {
     server_name ${DIRECTORY_UI_BUYER_DOMAIN};
 
     location / {
@@ -89,20 +106,6 @@ http {
       error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
     }
 
-    location ^~ /admin/ {
-      proxy_pass http://${DIRECTORY_UI_SUPPLIER_UPSTREAM}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT};
-      include /etc/nginx/directory_common.conf;
-      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
-
-      set \$allow false;
-      if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
-         set \$allow true;
-      }
-      if (\$allow = false) {
-         return 403;
-      }
-    }
-
     if (\$http_x_forwarded_proto != 'https') {
       return 301 https://\$host\$request_uri;
     }
@@ -111,6 +114,13 @@ http {
 EOF
 elif [ "$PROTOCOL" == "TCP" ]; then
 cat <<EOF >>nginx.conf
+
+stream {
+  server {
+    server_name ${DIRECTORY_API_DOMAIN};
+    listen ${DIRECTORY_API_UPSTREAM_PORT};
+    proxy_pass ${DIRECTORY_API_UPSTREAM}:${DIRECTORY_API_UPSTREAM_PORT};
+  }
 
 stream {
   server {
@@ -130,6 +140,7 @@ else
 echo "Unknown PROTOCOL. Valid values are HTTP or TCP."
 fi
 
+echo "Proxy ${PROTOCOL} for ${DIRECTORY_API_DOMAIN}:${DIRECTORY_API_UPSTREAM_PORT}"
 echo "Proxy ${PROTOCOL} for ${DIRECTORY_UI_BUYER_DOMAIN}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT}"
 echo "Proxy ${PROTOCOL} for ${DIRECTORY_UI_SUPPLIER_DOMAIN}:${DIRECTORY_UI_SUPPLIER_UPSTREAM_PORT}"
 
