@@ -63,6 +63,21 @@ http {
       error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
     }
 
+    location ^~ /admin/ {
+      proxy_pass http://${DIRECTORY_API_UPSTREAM}:${DIRECTORY_API_UPSTREAM_PORT};
+      include /etc/nginx/directory_common.conf;
+      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
+
+      set \$allow false;
+      if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
+         set \$allow true;
+      }
+      if (\$allow = false) {
+         return 403;
+      }
+    }
+
+
     if (\$http_x_forwarded_proto != 'https') {
       return 301 https://\$host\$request_uri;
     }
@@ -76,20 +91,6 @@ http {
       include /etc/nginx/directory_common.conf;
       error_page 403 405 414 416 500 501 502 503 504 ${ERROR_PAGE};
       error_page 413 ${ERROR_PAGE_FAB_REQUEST_TOO_LARGE};
-    }
-
-    location ^~ /admin/ {
-      proxy_pass http://${DIRECTORY_UI_BUYER_UPSTREAM}:${DIRECTORY_UI_BUYER_UPSTREAM_PORT};
-      include /etc/nginx/directory_common.conf;
-      error_page 403 405 413 414 416 500 501 502 503 504 ${ERROR_PAGE};
-
-      set \$allow false;
-      if (\$http_x_forwarded_for ~ ${ADMIN_IP_WHITELIST_REGEX}) {
-         set \$allow true;
-      }
-      if (\$allow = false) {
-         return 403;
-      }
     }
 
     if (\$http_x_forwarded_proto != 'https') {
